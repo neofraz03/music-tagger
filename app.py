@@ -2,7 +2,7 @@ import os
 import re
 import shutil
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 import musicbrainzngs
 from mutagen.easyid3 import EasyID3
 from mutagen.id3 import error
@@ -153,7 +153,6 @@ def fetch_studio_track_and_metadata(file_path, artist, title):
                 if len(date_str) >= 4 and date_str[:4].isdigit():
                     official_year = date_str[:4]
 
-        # Ultimate fallback: if album is still missing or unknown, use the track title itself
         if not official_album or official_album.lower() in ("unknown album", "none", ""):
             official_album = official_title
 
@@ -303,7 +302,6 @@ def parse_metadata(file_path, base_dir):
             if mb_title and len(mb_title) > 1:
                 title = mb_title
 
-    # Final safeguard if album couldn't be resolved from MB
     if not album or album.lower() in ("unknown album", "none", ""):
         album = title
 
@@ -347,6 +345,10 @@ def parse_metadata(file_path, base_dir):
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/music-tagger_logo.png')
+def serve_logo():
+    return send_from_directory('.', 'music-tagger_logo.png')
 
 @app.route('/scan', methods=['POST'])
 def scan_directory():
