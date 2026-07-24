@@ -9,7 +9,7 @@
     <style>
         :root {
             --tron-bg: #010409;
-            --tron-panel: rgba(2, 12, 24, 0.9);
+            --tron-panel: rgba(2, 12, 24, 0.92);
             --tron-cyan: #00f3ff;
             --tron-cyan-glow: rgba(0, 243, 255, 0.45);
             --tron-cyan-dim: rgba(0, 243, 255, 0.15);
@@ -28,6 +28,8 @@
             color: var(--tron-text);
             font-family: 'Courier New', Courier, monospace;
             min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
         }
 
         h1, h5, h6, .modal-title {
@@ -36,6 +38,7 @@
             text-transform: uppercase;
         }
 
+        /* Glass Card with Continuous Perimeter Lightcycle Tracer Effect */
         .glass-card {
             background: var(--tron-panel);
             backdrop-filter: blur(12px);
@@ -43,24 +46,46 @@
             box-shadow: 0 0 25px rgba(0, 0, 0, 0.9), inset 0 0 20px var(--tron-cyan-dim);
             border-radius: 0;
             position: relative;
+            /* overflow is visible so tracer beams can wrap smoothly around corners */
+            overflow: visible !important; 
         }
 
-        /* Sharp Vector Corners */
+        /* Top Horizontal Lightcycle Beam */
         .glass-card::before {
             content: '';
             position: absolute;
-            top: 0; left: 0;
-            width: 10px; height: 10px;
-            border-top: 2px solid var(--tron-cyan);
-            border-left: 2px solid var(--tron-cyan);
+            top: -2px;
+            left: -100%;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--tron-cyan), #ffffff);
+            box-shadow: 0 0 12px var(--tron-cyan);
+            animation: traceTop 4s linear infinite;
+            z-index: 5;
         }
+
+        /* Bottom Horizontal Lightcycle Beam */
         .glass-card::after {
             content: '';
             position: absolute;
-            bottom: 0; right: 0;
-            width: 10px; height: 10px;
-            border-bottom: 2px solid var(--tron-cyan);
-            border-right: 2px solid var(--tron-cyan);
+            bottom: -2px;
+            right: -100%;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--tron-orange), #ffffff);
+            box-shadow: 0 0 12px var(--tron-orange);
+            animation: traceBottom 4s linear infinite;
+            z-index: 5;
+        }
+
+        @keyframes traceTop {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        @keyframes traceBottom {
+            0% { right: -100%; }
+            100% { right: 100%; }
         }
 
         .logo-img {
@@ -125,6 +150,23 @@
             border-radius: 0 !important;
             box-shadow: 0 0 40px var(--tron-cyan-glow);
             backdrop-filter: blur(15px);
+            z-index: 1050;
+            position: relative;
+            overflow: visible !important;
+        }
+
+        /* Modal Tracer Beams */
+        .modal-content::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -100%;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--tron-cyan), #ffffff);
+            box-shadow: 0 0 12px var(--tron-cyan);
+            animation: traceTop 5s linear infinite;
+            z-index: 5;
         }
 
         .browser-item {
@@ -155,7 +197,6 @@
             vertical-align: middle;
         }
 
-        /* TRON Orange Customization for Current/Source Paths & Header Accents */
         .path-legacy {
             color: var(--tron-orange) !important;
             text-shadow: 0 0 8px var(--tron-orange-glow);
