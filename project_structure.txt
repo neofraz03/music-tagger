@@ -1,0 +1,6 @@
+audio-tagger/
+├── Dockerfile
+├── docker-compose.yml
+├── requirements.txt
+├── app.py
+└── .dockerignore

@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Tagger & Restructurer</title>
+    <!-- Generic Single Music Note Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 384 512' fill='%2300f3ff'><path d='M384 69.9V400c0 35.3-28.7 64-64 64h-16c-35.3 0-64-28.7-64-64s28.7-64 64-64h16V165.4L112 216.7V400c0 35.3-28.7 64-64 64H32c-35.3 0-64-28.7-64-64s28.7-64 64-64h16V144c0-21.9 14.2-41.2 35.2-47.9l224-72c14.9-4.7 31.2 1.4 39.4 14.1C379.3 44.8 384 56.9 384 69.9z'/></svg>">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #050b14, #0b1d28);
+            color: #e0fbfc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+        }
+        .glass-card {
+            background: rgba(11, 29, 40, 0.65);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 243, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            border-radius: 1rem;
+        }
+        .hologram-icon {
+            width: 48px;
+            height: 48px;
+            fill: #00f3ff;
+            filter: drop-shadow(0 0 10px rgba(0, 243, 255, 0.7));
+            animation: pulse-glow 2s infinite alternate;
+        }
+        @keyframes pulse-glow {
+            0% { filter: drop-shadow(0 0 5px rgba(0, 243, 255, 0.4)); }
+            100% { filter: drop-shadow(0 0 15px rgba(0, 243, 255, 0.9)); }
+        }
+        .form-control, .form-select {
+            background: rgba(5, 11, 20, 0.8) !important;
+            border: 1px solid rgba(0, 243, 255, 0.3) !important;
+            color: #00f3ff !important;
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: #00f3ff !important;
+            box-shadow: 0 0 10px rgba(0, 243, 255, 0.5) !important;
+        }
+        .btn-cyan {
+            background: transparent;
+            border: 1px solid #00f3ff;
+            color: #00f3ff;
+            font-weight: 600;
+            box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+        .btn-cyan:hover {
+            background: #00f3ff;
+            color: #050b14;
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.8);
+        }
+        .terminal-box {
+            background: rgba(2, 6, 12, 0.9);
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            color: #00f3ff;
+            font-family: monospace;
+            font-size: 0.85rem;
+            max-height: 200px;
+            overflow-y: auto;
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+        .modal-content {
+            background: rgba(11, 29, 40, 0.95) !important;
+            border: 1px solid rgba(0, 243, 255, 0.4) !important;
+            backdrop-filter: blur(16px);
+        }
+        .browser-item {
+            background: rgba(5, 11, 20, 0.7) !important;
+            border: 1px solid rgba(0, 243, 255, 0.2) !important;
+            color: #e0fbfc !important;
+            transition: all 0.2s ease;
+        }
+        .browser-item:hover {
+            background: rgba(0, 243, 255, 0.15) !important;
+            border-color: #00f3ff !important;
+        }
+        .text-muted {
+            color: #a0aec0 !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <div class="d-flex align-items-center mb-4">
+            <svg class="hologram-icon me-3" viewBox="0 0 384 512">
+                <path d="M384 69.9V400c0 35.3-28.7 64-64 64h-16c-35.3 0-64-28.7-64-64s28.7-64 64-64h16V165.4L112 216.7V400c0 35.3-28.7 64-64 64H32c-35.3 0-64-28.7-64-64s28.7-64 64-64h16V144c0-21.9 14.2-41.2 35.2-47.9l224-72c14.9-4.7 31.2 1.4 39.4 14.1C379.3 44.8 384 56.9 384 69.9z"/>
+            </svg>
+            <h1 class="mb-0 fw-bold text-info" style="text-shadow: 0 0 10px rgba(0,243,255,0.5);">Audio Tagger & Restructurer</h1>
+        </div>
+        
+        <!-- Directory Browser & Scan Card -->
+        <div class="glass-card p-4 mb-4">
+            <div class="mb-3">
+                <label for="scanDir" class="form-label text-info">Directory to Scan Inside Container</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="scanDir" value="/music">
+                    <button class="btn btn-outline-info" type="button" onclick="openBrowserModal('/music')">Browse...</button>
+                </div>
+            </div>
+            <button id="startScanBtn" class="btn btn-cyan w-100 py-2" onclick="startScan()">Start Metadata Search & Review</button>
+        </div>
+
+        <!-- Live Verbose Terminal Output Card -->
+        <div id="terminalCard" class="glass-card p-3 mb-4 d-none">
+            <h6 class="text-info mb-2">Live Scan Terminal Output:</h6>
+            <div id="terminalOutput" class="terminal-box"></div>
+        </div>
+
+        <div id="loading" class="text-center d-none">
+            <div class="spinner-border text-info" role="status"></div>
+            <p class="mt-2 text-info">Querying MusicBrainz metadata...</p>
+        </div>
+    </div>
+
+    <!-- Interactive Directory Explorer Modal -->
+    <div class="modal fade" id="browserModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content text-light">
+                <div class="modal-header border-bottom border-cyan">
+                    <h5 class="modal-title text-info">📁 Select Folder to Scan</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <small class="text-muted">Current Path:</small>
+                        <div id="currentBrowserPath" class="fw-bold text-info font-monospace">/music</div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mb-3">
+                        <button id="parentDirBtn" class="btn btn-sm btn-outline-secondary" onclick="loadDirectory(currentParentPath)" disabled>⬅️ Up to Parent Folder</button>
+                        <button class="btn btn-sm btn-cyan" onclick="selectCurrentDirectory()">Select This Folder</button>
+                    </div>
+
+                    <div id="browserList" class="list-group list-group-dark" style="max-height: 350px; overflow-y: auto;">
+                        <!-- Dynamic subdirectories load here -->
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-cyan">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-cyan btn-sm" onclick="selectCurrentDirectory()">Choose Active Directory</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Phase 1: Metadata Review Modal -->
+    <div class="modal fade" id="metadataModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content text-light">
+                <div class="modal-header border-bottom border-cyan">
+                    <h5 class="modal-title text-info">Step 1: Review Proposed Metadata Imports</h5>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex justify-content-end mb-3">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAllMetadata(false)">Deselect All</button>
+                    </div>
+                    <div id="metadataTableContainer"></div>
+                </div>
+                <div class="modal-footer border-top border-cyan">
+                    <button type="button" class="btn btn-outline-secondary" onclick="cancelProcess('metadataModal')">Cancel</button>
+                    <button type="button" class="btn btn-outline-danger" onclick="denyAllMetadata()">Deny All</button>
+                    <button type="button" class="btn btn-cyan" onclick="stageMetadataAndProceed()">Approve Staged & Continue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Phase 2: Restructuring & Renaming Review Modal -->
+    <div class="modal fade" id="restructureModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content text-light">
+                <div class="modal-header border-bottom border-cyan">
+                    <h5 class="modal-title text-info">Step 2: Review File Restructuring & Renaming</h5>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex justify-content-end mb-3">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAllRestructure(false)">Deselect All</button>
+                    </div>
+                    <div id="restructureTableContainer"></div>
+                </div>
+                <div class="modal-footer border-top border-cyan">
+                    <button type="button" class="btn btn-outline-secondary" onclick="backToMetadataModal()">⬅️ Back</button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="cancelProcess('restructureModal')">Cancel</button>
+                    <button type="button" class="btn btn-outline-danger" onclick="denyAllRestructure()">Deny All</button>
+                    <button type="button" class="btn btn-cyan" onclick="proceedToFinalReview()">Proceed to Final Review &rarr;</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Phase 3: Final Review Summary Modal -->
+    <div class="modal fade" id="finalReviewModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content text-light">
+                <div class="modal-header border-bottom border-cyan">
+                    <h5 class="modal-title text-info">Step 3: Final Review Summary Before Apply</h5>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted">Please perform a final check of all actions that are cleared to execute. Unchecked items will be skipped.</p>
+                    <div class="d-flex justify-content-end mb-3">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAllFinal(false)">Deselect All</button>
+                    </div>
+                    <div id="finalReviewTableContainer"></div>
+                </div>
+                <div class="modal-footer border-top border-cyan">
+                    <button type="button" class="btn btn-outline-secondary" onclick="backToRestructureModal()">⬅️ Back</button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="cancelProcess('finalReviewModal')">Cancel</button>
+                    <button type="button" class="btn btn-cyan" onclick="executeFinalApproval()">Approve Selected & Apply Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unparsed / Failed Files Modal -->
+    <div class="modal fade" id="failedModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content text-light">
+                <div class="modal-header border-bottom border-warning">
+                    <h5 class="modal-title text-warning">⚠️ Files Requiring Manual Attention</h5>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted">The following files could not be reliably parsed or matched:</p>
+                    <ul id="failedFilesList" class="list-group list-group-dark"></ul>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let sessionData = [];
+        let failedData = [];
+        let activeBrowsePath = '/music';
+        let currentParentPath = null;
+
+        async function openBrowserModal(path) {
+            const currentInputVal = document.getElementById('scanDir').value;
+            await loadDirectory(currentInputVal || '/music');
+            new bootstrap.Modal(document.getElementById('browserModal')).show();
+        }
+
+        async function loadDirectory(dirPath) {
+            try {
+                const response = await fetch('/browse', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ directory: dirPath })
+                });
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert('Error browsing directory: ' + data.error);
+                    return;
+                }
+
+                activeBrowsePath = data.current;
+                currentParentPath = data.parent;
+                document.getElementById('currentBrowserPath').innerText = activeBrowsePath;
+
+                const parentBtn = document.getElementById('parentDirBtn');
+                if (currentParentPath) {
+                    parentBtn.removeAttribute('disabled');
+                } else {
+                    parentBtn.setAttribute('disabled', 'true');
+                }
+
+                let listHtml = '';
+                if (data.subdirectories.length === 0) {
+                    listHtml = `<div class="text-center text-muted py-3">No subdirectories found here.</div>`;
+                } else {
+                    data.subdirectories.forEach(sub => {
+                        listHtml += `<button type="button" class="list-group-item list-group-item-action browser-item mb-1 rounded d-flex justify-content-between align-items-center" onclick="loadDirectory('${sub.path}')">
+                            <span>📁 ${sub.name}</span>
+                            <small class="text-info">Open &rsaquo;</small>
+                        </button>`;
+                    });
+                }
+                document.getElementById('browserList').innerHTML = listHtml;
+            } catch (err) {
+                console.error('Failed to load directory:', err);
+            }
+        }
+
+        function selectCurrentDirectory() {
+            document.getElementById('scanDir').value = activeBrowsePath;
+            bootstrap.Modal.getInstance(document.getElementById('browserModal')).hide();
+        }
+
+        async function startScan() {
+            const dir = document.getElementById('scanDir').value;
+            document.getElementById('loading').classList.remove('d-none');
+            document.getElementById('terminalCard').classList.remove('d-none');
+            const terminal = document.getElementById('terminalOutput');
+            terminal.innerHTML = `[INFO] Initializing metadata search on directory: ${dir}...\n`;
+
+            try {
+                const response = await fetch('/scan', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ directory: dir })
+                });
+                const data = await response.json();
+                document.getElementById('loading').classList.add('d-none');
+
+                if (data.logs) {
+                    data.logs.forEach(log => {
+                        terminal.innerHTML += `[SCAN] ${log}\n`;
+                    });
+                    terminal.scrollTop = terminal.scrollHeight;
+                }
+
+                sessionData = data.items || [];
+                failedData = data.failed || [];
+
+                if (sessionData.length > 0) {
+                    renderMetadataTable();
+                    new bootstrap.Modal(document.getElementById('metadataModal')).show();
+                } else if (failedData.length > 0) {
+                    showFailedModal();
+                } else {
+                    alert('No audio files found in this directory.');
+                }
+            } catch (err) {
+                document.getElementById('loading').classList.add('d-none');
+                terminal.innerHTML += `[ERROR] Scan failed: ${err}\n`;
+            }
+        }
+
+        function renderMetadataTable() {
+            let html = `<table class="table table-dark table-striped table-bordered align-middle text-small" style="background:transparent;">
+                <thead><tr class="text-info">
+                    <th style="width: 40px;"><input type="checkbox" id="selectAllMeta" checked onclick="toggleAllMetadata(this.checked)"></th>
+                    <th>File Path</th>
+                    <th>Artist</th>
+                    <th>Album</th>
+                    <th>Year</th>
+                    <th>Track & Title</th>
+                </tr></thead><tbody>`;
+
+            sessionData.forEach((item, index) => {
+                const isChecked = item.meta_action !== 'deny';
+                html += `<tr>
+                    <td><input type="checkbox" class="meta-checkbox" id="meta-check-${index}" ${isChecked ? 'checked' : ''}></td>
+                    <td><small class="text-muted">${item.original_path}</small></td>
+                    <td><input type="text" class="form-control form-control-sm" id="meta-artist-${index}" value="${item.artist || ''}"></td>
+                    <td><input type="text" class="form-control form-control-sm" id="meta-album-${index}" value="${item.album || ''}"></td>
+                    <td><input type="text" class="form-control form-control-sm" id="meta-year-${index}" value="${item.year || ''}"></td>
+                    <td>
+                        <div class="input-group input-group-sm">
+                            <input type="text" class="form-control" id="meta-track-${index}" value="${item.tracknumber || ''}" style="max-width: 50px;" placeholder="Trk">
+                            <input type="text" class="form-control" id="meta-title-${index}" value="${item.title || ''}">
+                        </div>
+                    </td>
+                </tr>`;
+            });
+            html += `</tbody></table>`;
+            document.getElementById('metadataTableContainer').innerHTML = html;
+        }
+
+        function toggleAllMetadata(status) {
+            document.querySelectorAll('.meta-checkbox').forEach(cb => cb.checked = status);
+            const selectAll = document.getElementById('selectAllMeta');
+            if (selectAll) selectAll.checked = status;
+        }
+
+        function denyAllMetadata() {
+            toggleAllMetadata(false);
+        }
+
+        async function stageMetadataAndProceed() {
+            sessionData.forEach((item, index) => {
+                const isChecked = document.getElementById(`meta-check-${index}`).checked;
+                item.meta_action = isChecked ? 'approve' : 'deny';
+                item.artist = document.getElementById(`meta-artist-${index}`).value;
+                item.album = document.getElementById(`meta-album-${index}`).value;
+                item.year = document.getElementById(`meta-year-${index}`).value;
+                item.tracknumber = document.getElementById(`meta-track-${index}`).value;
+                const titleEl = document.getElementById(`meta-title-${index}`);
+                if (titleEl) item.title = titleEl.value;
+
+                // Dynamically re-calculate the proposed path using manual values
+                const formattedYear = item.year ? `(${item.year}) ` : '';
+                const safeArtist = (item.artist || 'Unknown Artist').replace(/[<>:"/\\|?*]/g, '').trim();
+                const safeAlbum = (item.album || 'Unknown Album').replace(/[<>:"/\\|?*]/g, '').trim();
+                const safeTitle = (item.title || 'Unknown Title').replace(/[<>:"/\\|?*]/g, '').trim();
+                const safeTrack = (item.tracknumber || '1').padStart(2, '0');
+
+                // Extract root music directory from original path
+                const pathParts = item.original_path.split('/');
+                let rootDir = '/music';
+                const musicIndex = pathParts.indexOf('music');
+                if (musicIndex !== -1) {
+                    rootDir = pathParts.slice(0, musicIndex + 1).join('/');
+                }
+
+                const extMatch = item.original_path.match(/\.[0-9a-z]+$/i);
+                const fileExt = extMatch ? extMatch[0] : '.mp3';
+
+                const newAlbumFolder = `${formattedYear}${safeAlbum}`.trim();
+                item.proposed_path = `${rootDir}/${safeArtist}/${newAlbumFolder}/${safeTrack} - ${safeTitle}${fileExt}`;
+            });
+
+            bootstrap.Modal.getInstance(document.getElementById('metadataModal')).hide();
+
+            // Send to server to keep back-end synchronized if needed
+            const response = await fetch('/apply-metadata', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ items: sessionData })
+            });
+            const result = await response.json();
+
+            if (result.success || result.items) {
+                if (result.items) sessionData = result.items;
+                renderRestructureTable();
+                new bootstrap.Modal(document.getElementById('restructureModal')).show();
+            } else {
+                alert('Error staging metadata: ' + (result.message || 'Unknown error'));
+            }
+        }
+
+        function backToMetadataModal() {
+            bootstrap.Modal.getInstance(document.getElementById('restructureModal')).hide();
+            renderMetadataTable();
+            new bootstrap.Modal(document.getElementById('metadataModal')).show();
+        }
+
+        function renderRestructureTable() {
+            const itemsNeedingRestructure = sessionData.filter(item => item.original_path !== item.proposed_path);
+
+            if (itemsNeedingRestructure.length === 0) {
+                document.getElementById('restructureTableContainer').innerHTML = `
+                    <div class="alert alert-info bg-dark text-info border-info text-center py-4">
+                        <h5>✨ All files are already structured correctly!</h5>
+                        <p class="mb-0 text-muted">No file renaming or moving is required. You can proceed directly to the final review.</p>
+                    </div>`;
+                return;
+            }
+
+            let html = `<table class="table table-dark table-striped table-bordered align-middle text-small" style="background:transparent;">
+                <thead><tr class="text-info">
+                    <th style="width: 40px;"><input type="checkbox" id="selectAllRestruct" checked onclick="toggleAllRestructure(this.checked)"></th>
+                    <th>Current Path</th>
+                    <th>Proposed Restructured Path</th>
+                </tr></thead><tbody>`;
+
+            sessionData.forEach((item, index) => {
+                if (item.original_path === item.proposed_path) return;
+                const isChecked = item.restruct_action !== 'deny' && item.meta_action !== 'deny';
+                html += `<tr>
+                    <td><input type="checkbox" class="restruct-checkbox" id="restruct-check-${index}" ${isChecked ? 'checked' : ''}></td>
+                    <td><small class="text-muted">${item.original_path}</small></td>
+                    <td><small class="text-info">${item.proposed_path}</small></td>
+                </tr>`;
+            });
+            html += `</tbody></table>`;
+            document.getElementById('restructureTableContainer').innerHTML = html;
+        }
+
+        function toggleAllRestructure(status) {
+            document.querySelectorAll('.restruct-checkbox').forEach(cb => cb.checked = status);
+            const selectAll = document.getElementById('selectAllRestruct');
+            if (selectAll) selectAll.checked = status;
+        }
+
+        function denyAllRestructure() {
+            toggleAllRestructure(false);
+        }
+
+        function proceedToFinalReview() {
+            sessionData.forEach((item, index) => {
+                const cb = document.getElementById(`restruct-check-${index}`);
+                if (cb) {
+                    item.restruct_action = cb.checked ? 'approve' : 'deny';
+                } else if (item.original_path === item.proposed_path) {
+                    item.restruct_action = 'approve';
+                }
+            });
+
+            bootstrap.Modal.getInstance(document.getElementById('restructureModal')).hide();
+            renderFinalReviewTable();
+            new bootstrap.Modal(document.getElementById('finalReviewModal')).show();
+        }
+
+        function backToRestructureModal() {
+            bootstrap.Modal.getInstance(document.getElementById('finalReviewModal')).hide();
+            renderRestructureTable();
+            new bootstrap.Modal(document.getElementById('restructureModal')).show();
+        }
+
+        function renderFinalReviewTable() {
+            let html = `<table class="table table-dark table-striped table-bordered align-middle text-small" style="background:transparent;">
+                <thead><tr class="text-info">
+                    <th style="width: 40px;"><input type="checkbox" id="selectAllFinal" checked onclick="toggleAllFinal(this.checked)"></th>
+                    <th>Artist</th>
+                    <th>Album</th>
+                    <th>Year</th>
+                    <th>Track & Title</th>
+                    <th>Final Destination Path</th>
+                </tr></thead><tbody>`;
+
+            sessionData.forEach((item, index) => {
+                const isChecked = item.final_action !== 'deny' && item.restruct_action !== 'deny' && item.meta_action !== 'deny';
+                html += `<tr>
+                    <td><input type="checkbox" class="final-checkbox" id="final-check-${index}" ${isChecked ? 'checked' : ''}></td>
+                    <td><strong>${item.artist || ''}</strong></td>
+                    <td>${item.album || ''}</td>
+                    <td>${item.year || ''}</td>
+                    <td><span class="badge bg-secondary">${item.tracknumber || '1'}</span> ${item.title || ''}</td>
+                    <td><small class="text-info font-monospace">${item.proposed_path}</small></td>
+                </tr>`;
+            });
+            html += `</tbody></table>`;
+            document.getElementById('finalReviewTableContainer').innerHTML = html;
+        }
+
+        function toggleAllFinal(status) {
+            document.querySelectorAll('.final-checkbox').forEach(cb => cb.checked = status);
+            const selectAll = document.getElementById('selectAllFinal');
+            if (selectAll) selectAll.checked = status;
+        }
+
+        async function executeFinalApproval() {
+            sessionData.forEach((item, index) => {
+                const cb = document.getElementById(`final-check-${index}`);
+                const isChecked = cb ? cb.checked : true;
+                item.final_action = isChecked ? 'approve' : 'deny';
+                item.restruct_action = isChecked ? 'approve' : 'deny';
+            });
+
+            const response = await fetch('/apply-restructure', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ items: sessionData })
+            });
+            const result = await response.json();
+            alert(result.message || 'Processing completed.');
+            bootstrap.Modal.getInstance(document.getElementById('finalReviewModal')).hide();
+
+            if (failedData.length > 0) {
+                showFailedModal();
+            }
+        }
+
+        function showFailedModal() {
+            let listHtml = '';
+            failedData.forEach(f => {
+                listHtml += `<li class="list-group-item bg-secondary text-light border-dark mb-1 rounded"><strong>File:</strong> ${f.path}<br><small class="text-warning">Reason: ${f.reason}</small></li>`;
+            });
+            document.getElementById('failedFilesList').innerHTML = listHtml;
+            new bootstrap.Modal(document.getElementById('failedModal')).show();
+        }
+
+        function cancelProcess(modalId) {
+            bootstrap.Modal.getInstance(document.getElementById(modalId)).hide();
+        }
+    </script>
+</body>
+</html>

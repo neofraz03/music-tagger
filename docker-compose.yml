@@ -1,0 +1,12 @@
+services:
+  audio-tagger:
+    build: .
+    #platform: linux/amd64
+    image: neofraz03/music-tagger:latest
+    container_name: music-tagger
+    ports:
+      - "5050:5000"
+    volumes:
+      - /Users/neofraz03/Downloads:/music
+    environment:
+      - MUSIC_DIR=/music
