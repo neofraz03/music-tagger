@@ -61,23 +61,33 @@ def fetch_studio_track_and_metadata(file_path, artist, title):
         valid_candidates = []
         
         for rec in recordings:
+            if not isinstance(rec, dict):
+                continue
             releases = rec.get('release-list', [])
             for rel in releases:
+                if not isinstance(rel, dict):
+                    continue
                 rel_title = rel.get('title', '')
                 rel_title_lower = rel_title.lower()
                 release_date = rel.get('date', '')
                 
-                if not release_date and 'release-group' in rel:
-                    release_date = rel.get('release-group', {}).get('first-release-date', '')
+                release_group = rel.get('release-group', {})
+                if not release_date and isinstance(release_group, dict):
+                    release_date = release_group.get('first-release-date', '')
 
                 release_year = release_date[:4] if len(release_date) >= 4 else '9999'
                 
                 artist_credit = rel.get('artist-credit', [])
-                is_various = any('various' in ac.get('artist', {}).get('name', '').lower() for ac in artist_credit)
+                is_various = False
+                for ac in artist_credit:
+                    if isinstance(ac, dict):
+                        ac_artist = ac.get('artist', {})
+                        if isinstance(ac_artist, dict) and 'various' in ac_artist.get('name', '').lower():
+                            is_various = True
 
-                release_group = rel.get('release-group', {})
-                primary_type = release_group.get('type', '').lower() 
-                secondary_types = [st.lower() for st in release_group.get('secondary-type-list', [])]
+                primary_type = release_group.get('type', '').lower() if isinstance(release_group, dict) else ''
+                secondary_type_list = release_group.get('secondary-type-list', []) if isinstance(release_group, dict) else []
+                secondary_types = [st.lower() for st in secondary_type_list if isinstance(st, str)]
                 
                 skip_secondary = ['live', 'dj-mix', 'spokenword', 'interview', 'bootleg', 'remix']
                 if any(st in secondary_types for st in skip_secondary):
@@ -125,35 +135,42 @@ def fetch_studio_track_and_metadata(file_path, artist, title):
                 try:
                     rel_data = musicbrainzngs.get_release_by_id(release_id, includes=['recordings', 'release-groups', 'media'])
                     release_node = rel_data.get('release', {})
-                    
-                    date_str = release_node.get('date', '')
-                    if not date_str and 'release-group' in release_node:
-                        date_str = release_node.get('release-group', {}).get('first-release-date', '')
-                    
-                    if len(date_str) >= 4 and date_str[:4].isdigit():
-                        official_year = date_str[:4]
+                    if isinstance(release_node, dict):
+                        date_str = release_node.get('date', '')
+                        rg_node = release_node.get('release-group', {})
+                        if not date_str and isinstance(rg_node, dict):
+                            date_str = rg_node.get('first-release-date', '')
+                        
+                        if len(date_str) >= 4 and date_str[:4].isdigit():
+                            official_year = date_str[:4]
 
-                    media_list = release_node.get('medium-list', [])
-                    for medium in media_list:
-                        for track in medium.get('track-list', []):
-                            if track.get('recording', {}).get('id') == rec['id']:
-                                pos = track.get('position')
-                                if pos:
-                                    track_number = str(pos)
-                                    break
-                        if track_number != "1":
-                            break
+                        media_list = release_node.get('medium-list', [])
+                        for medium in media_list:
+                            if not isinstance(medium, dict):
+                                continue
+                            for track in medium.get('track-list', []):
+                                if not isinstance(track, dict):
+                                    continue
+                                recording_node = track.get('recording', {})
+                                if isinstance(recording_node, dict) and recording_node.get('id') == rec.get('id'):
+                                    pos = track.get('position')
+                                    if pos:
+                                        track_number = str(pos)
+                                        break
+                            if track_number != "1":
+                                break
                 except Exception as ex:
                     print(f"Release ID lookup fallback error: {ex}")
 
             if not official_year:
                 date_str = rel.get('date', '')
-                if not date_str and 'release-group' in rel:
-                    date_str = rel.get('release-group', {}).get('first-release-date', '')
+                rg_node = rel.get('release-group', {})
+                if not date_str and isinstance(rg_node, dict):
+                    date_str = rg_node.get('first-release-date', '')
                 if len(date_str) >= 4 and date_str[:4].isdigit():
                     official_year = date_str[:4]
 
-        if not official_album or official_album.lower() in ("unknown album", "none", ""):
+        if not official_album or not isinstance(official_album, str) or official_album.lower() in ("unknown album", "none", ""):
             official_album = official_title
 
     except Exception as e:
