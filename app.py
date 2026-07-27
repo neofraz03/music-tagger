@@ -5,7 +5,7 @@ from pathlib import Path
 from flask import Flask, render_template, request, jsonify, send_from_directory
 import musicbrainzngs
 from mutagen.easyid3 import EasyID3
-from mutagen.id3 import error
+from mutagen.id3 import error, ID3NoHeaderError
 from mutagen.mp3 import MP3
 import mutagen
 
@@ -449,23 +449,36 @@ def apply_restructure():
         prop_path = item['proposed_path']
         is_path_correct = item.get('is_path_correct', False)
 
-        if not os.path.exists(orig_path):
+        if not os.path.exists(orig_path) or os.path.getsize(orig_path) == 0:
+            print(f"Skipping non-existent or empty path: {orig_path}")
             continue
 
         try:
-            audio = MP3(orig_path, ID3=EasyID3)
+            # Safely instantiate and guard against header corruption / pointer faults
+            try:
+                audio = MP3(orig_path, ID3=EasyID3)
+            except ID3NoHeaderError:
+                audio = MP3(orig_path)
+                audio.add_tags()
+                audio = MP3(orig_path, ID3=EasyID3)
+            except Exception as init_err:
+                print(f"Skipping malformed audio frame header on {orig_path}: {init_err}")
+                continue
+
             try:
                 audio.add_tags()
             except error:
                 pass
 
-            audio['title'] = item['title']
-            audio['artist'] = item['artist']
-            audio['album'] = item['album']
+            audio['title'] = [item['title']]
+            audio['artist'] = [item['artist']]
+            audio['album'] = [item['album']]
             if item['year']:
-                audio['date'] = item['year']
-            audio['tracknumber'] = item['tracknumber']
-            audio.save()
+                audio['date'] = [str(item['year'])]
+            audio['tracknumber'] = [str(item['tracknumber'])]
+            
+            # Save safely enforcing boundaries to avoid invalid memory reference pointer drops
+            audio.save(orig_path, v1=2)
 
             if not is_path_correct and orig_path != prop_path:
                 os.makedirs(os.path.dirname(prop_path), exist_ok=True)
